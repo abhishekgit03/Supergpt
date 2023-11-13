@@ -22,12 +22,18 @@ def createassistant():
         os.remove("test.pdf")
     except:
         pass
+    uniqueid= request.form.get('uniqueid')
     assistantName=  request.form.get('assistantName')
     instruction= request.form.get('instruction')
-    tools= request.form.get('tools')
-    # tools_list=[]
-    # for i in json.loads(tools):
-    #     tools_list.append({"type": i})
+    code_interpreter=request.form.get("code_interpreter")
+    retrieval=request.form.get("retrieval")
+    tools=[]
+    print(retrieval)
+    if code_interpreter=="True":
+        tools.append({"type":"code_interpreter"})
+    if retrieval=="True":
+        tools.append({"type":"retrieval"})
+    print(tools)
     
     try:
         file1 = request.files['file']
@@ -37,7 +43,7 @@ def createassistant():
         assistant = client.beta.assistants.create(
         name=assistantName,
         instructions= instruction,
-        tools=[{"type": "code_interpreter"}, {"type": "retrieval"}],
+        tools=tools,
         model="gpt-4-1106-preview",
         file_ids=[file.id] )
         print("Executed")
@@ -45,10 +51,26 @@ def createassistant():
         assistant = client.beta.assistants.create(
         name=assistantName,
         instructions= instruction,
-        tools=[{"type": "code_interpreter"}, {"type": "retrieval"}],
+        tools=tools,
         model="gpt-4-1106-preview",
         )
-    
+    # userdb.insert_one({"_id":uniqueid,{"threadId": ""},{"$push": {"assistants":  assistant.id}})  
+    cust_info = userdb.find_one({"_id":uniqueid})
+    assistantInfo={
+            "assistantid":assistant.id,
+            "assistantname":assistantName,
+            "instruction": instruction
+        }
+    if cust_info is not None: 
+        userdb.update_one(
+                        {"_id": uniqueid},
+                         {"$push": {"assistants": assistantInfo}})  
+    else:
+        userdb.insert_one({"_id":uniqueid,"assistants": [assistantInfo]})    
+    # userdb.insert_one(
+    #                     {"_id": uniqueid},
+    #                     {"$push": {"assistants": assistant.id}})  
+
     print(assistant)
     result={
         "assistantId": assistant.id
@@ -60,6 +82,38 @@ def createassistant():
     return jsonify(result)
 
 
+@app.route("/getfileid",methods=["POST","GET"])
+def getFileid():
+    file1 = request.files['file']
+    uniqueid= request.form.get('uniqueid')
+    file_bytes = file1.read()
+    # file1.save(os.path.join(os.getcwd(), "test"))
+    # file_extension = os.path.splitext(file_path)[1]
+    file = client.files.create(file=file_bytes,purpose='assistants')
+    cust_info = userdb.find_one({"_id":uniqueid})
+    if "files" not in cust_info:
+        userdb.update_one(
+                            {"_id": uniqueid},
+                            {"$set": {"files": [file.id]}})  
+    else:
+        userdb.update_one(
+                            {"_id": uniqueid},
+                            {"$push": {"files": file.id}})  
+    print(file.id)
+    response={
+        "fileId":file.id
+    }
+    return jsonify(response)
+
+@app.route("/getassistants/<string:uniqueid>",methods=["POST","GET"])
+def getassistants(uniqueid):
+    cust_info = userdb.find_one({"_id":uniqueid})
+    if "assistants" not in cust_info:
+        return jsonify({"error":"No assistants found for this user"}), 400
+    else:
+        response=cust_info["assistants"]
+    
+    return response
 
 @app.route("/chatbot",methods=["POST","GET"])
 def chatbot():
@@ -67,21 +121,36 @@ def chatbot():
     unique_id=req_data["unique_id"]
     message=req_data["message"]
     assistantId=req_data["assistantId"]
+    # file_id=req_data["fileid"]
+   
     cust_info = userdb.find_one({"_id":unique_id})
-    if cust_info is not None: 
+    if  cust_info==None:
+        return jsonify({"error":"You have not yet created an assistant or your assistant id is incorrect"}), 400
+    if "threadId" in cust_info: 
         threadId = cust_info["threadId"]  
     else:
         thread = client.beta.threads.create()
-        userdb.insert_one({"_id":unique_id,"threadId": thread.id})    
         threadId = thread.id
-
-
-    message = client.beta.threads.messages.create(
-    thread_id=threadId,
-    role="user",
-    content=message
-    )
-
+        userdb.update_one({"_id":unique_id}, {"$set": {"threadId": threadId}})    
+    filedata=""    
+    if "files" in cust_info:
+        filedata=cust_info["files"]
+        print(filedata)
+    print(filedata)
+    if filedata!="":
+        message = client.beta.threads.messages.create(
+        thread_id=threadId,
+        role="user",
+        content=message,
+        file_ids=filedata
+        )
+        print("TEST DONE")
+    else:
+        message = client.beta.threads.messages.create(
+        thread_id=threadId,
+        role="user",
+        content=message,
+        )
 
     run = client.beta.threads.runs.create(
     thread_id=threadId,
