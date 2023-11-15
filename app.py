@@ -27,6 +27,7 @@ def createassistant():
     instruction= request.form.get('instruction')
     code_interpreter=request.form.get("code_interpreter")
     retrieval=request.form.get("retrieval")
+    print("Unique ID:",uniqueid)
     tools=[]
     print(retrieval)
     if code_interpreter=="True":
@@ -59,7 +60,9 @@ def createassistant():
     assistantInfo={
             "assistantid":assistant.id,
             "assistantname":assistantName,
-            "instruction": instruction
+            "instruction": instruction,
+            "code_interpreter":code_interpreter,
+            "retrieval":retrieval
         }
     if cust_info is not None: 
         userdb.update_one(
@@ -105,6 +108,72 @@ def getFileid():
     }
     return jsonify(response)
 
+
+
+# Function to encode the image
+def encode_image(file_bytes):
+        return base64.b64encode(file_bytes).decode('utf-8')
+
+
+@app.route("/getimageid",methods=["POST","GET"])
+def getImageid():
+    file1 = request.files['file']
+    uniqueid= request.form.get('uniqueid')
+    file_bytes = file1.read()
+    api_key = "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"
+    # file1.save(os.path.join(os.getcwd(), "test"))
+    # file_extension = os.path.splitext(file_path)[1]
+    image_path = "img.jpeg"
+
+    # Getting the base64 string
+    base64_image = encode_image(file_bytes)
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    payload = {
+        "model": "gpt-4-vision-preview",
+        "messages": [
+        {
+            "role": "user",
+            "content": [
+            {
+                "type": "text",
+                "text": "What’s in this image?"
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                "url": f"data:image/jpeg;base64,{base64_image}"
+                }
+            }
+            ]
+        }
+        ],
+        "max_tokens": 300
+    }
+
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    result=response.content
+    print(result)
+    file = client.files.create(file=result,purpose='assistants')
+    cust_info = userdb.find_one({"_id":uniqueid})
+    if "files" not in cust_info:
+        userdb.update_one(
+                            {"_id": uniqueid},
+                            {"$set": {"files": [file.id]}})  
+    else:
+        userdb.update_one(
+                            {"_id": uniqueid},
+                            {"$push": {"files": file.id}})  
+    print(file.id)
+    response={
+        "fileId":file.id
+    }
+    return jsonify(response)
+
 @app.route("/getassistants/<string:uniqueid>",methods=["POST","GET"])
 def getassistants(uniqueid):
     cust_info = userdb.find_one({"_id":uniqueid})
@@ -122,7 +191,6 @@ def chatbot():
     message=req_data["message"]
     assistantId=req_data["assistantId"]
     # file_id=req_data["fileid"]
-   
     cust_info = userdb.find_one({"_id":unique_id})
     if  cust_info==None:
         return jsonify({"error":"You have not yet created an assistant or your assistant id is incorrect"}), 400
