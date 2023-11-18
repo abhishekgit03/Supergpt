@@ -18,10 +18,6 @@ userdb = db.gptassistant
 
 @app.route("/createassistant",methods=["POST","GET"])
 def createassistant():
-    try:
-        os.remove("test.pdf")
-    except:
-        pass
     uniqueid= request.form.get('uniqueid')
     assistantName=  request.form.get('assistantName')
     instruction= request.form.get('instruction')
@@ -38,8 +34,10 @@ def createassistant():
     
     try:
         file1 = request.files['file']
-        file1.save(os.path.join(os.getcwd(), "test.pdf"))
-        file = client.files.create(file=open("test.pdf", "rb"),purpose='assistants')
+        # file1.save(os.path.join(os.getcwd(), "test.pdf"))
+        # file = client.files.create(file=open("test.pdf", "rb"),purpose='assistants')
+        file_bytes = file1.read()
+        file = client.files.create(file=file_bytes,purpose='assistants')
         print(file)
         assistant = client.beta.assistants.create(
         name=assistantName,
@@ -78,10 +76,6 @@ def createassistant():
     result={
         "assistantId": assistant.id
     }
-    try:
-        os.remove("test.pdf")
-    except:
-        pass
     return jsonify(result)
 
 
@@ -278,6 +272,23 @@ def chatbot():
         "image": image
     }
     return jsonify(response)
+
+@app.route('/invite/<string:id>/<string:email>/<string:targetemail>', methods=['GET'])
+def get_invite(id, email,targetemail):
+    cust_info_sender = userdb.find_one({"_id":email})
+    cust_info_target = userdb.find_one({"_id":targetemail})
+   
+    if  cust_info_sender!=None and cust_info_target!=None:
+        fetchedAssistant=cust_info_sender["assistants"]["assistantid"==id]
+        print(fetchedAssistant)
+        userdb.update_one(
+                            {"_id": targetemail},
+                            {"$push": {"assistants": fetchedAssistant}})
+                            
+        return jsonify({"status":"Success"})
+    else:
+        return jsonify({"error":"User not found"}),400
+
 
 # @app.route("/createassistant1",methods=["POST","GET"])
 # def createassistant1():
