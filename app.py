@@ -60,8 +60,10 @@ def createassistant():
             "assistantname":assistantName,
             "instruction": instruction,
             "code_interpreter":code_interpreter,
-            "retrieval":retrieval
+            "retrieval":retrieval,
+            "tools":tools
         }
+    print(assistantInfo)
     if cust_info is not None: 
         userdb.update_one(
                         {"_id": uniqueid},
@@ -77,6 +79,65 @@ def createassistant():
         "assistantId": assistant.id
     }
     return jsonify(result)
+
+@app.route("/createaction",methods=["POST","GET"])
+def createaction():
+    req_data = request.get_json()
+    parameter_list=req_data["parameters"]
+    nameofFunction=req_data["functionname"] #"get_current_weather"
+    descFunction=req_data["functiondesc"] #"Get the current weather in a given location"
+    url=req_data["apiurl"] #"127.0.0.0/getweather"
+    assistantid=req_data["assistantid"]
+    unique_id=req_data["unique_id"]
+    cust_info = userdb.find_one({"_id":unique_id})
+    for assistant in cust_info["assistants"]:
+        # print(assistant)
+        if assistant['assistantid'] == assistantid:
+            fetchedAssistant=assistant
+            break
+    
+    print("fetchedAssistant:",fetchedAssistant)
+    properties_dict = {
+    "type": "object",
+    "properties": {},
+    "required": [] }
+
+    for param in parameter_list:
+        param_name = param["para_name"]
+        param_type = param["para_type"]
+        param_desc = param["para_desc"]
+        param_checked = param["checked"]
+
+        properties_dict["properties"][param_name] = {
+            "type": param_type,
+            "description": param_desc
+        }
+
+        if param_checked:
+            properties_dict["required"].append(param_name)
+
+    # Create the final JSON structure
+    api_json = {
+        "name": nameofFunction,
+        "description": descFunction,
+        "parameters": properties_dict
+    }
+    final_json={"type": "function", 
+      "function": api_json}
+    tools=fetchedAssistant["tools"]
+    tools.append(final_json)
+    my_updated_assistant = client.beta.assistants.update(
+    assistantid,
+    tools=tools,
+    )
+    userdb.update_one(
+                        {"_id": unique_id, "assistants.assistantid": assistantid},
+                        {"$set": {"assistants.$.tools": tools}}
+    )
+    print(my_updated_assistant)
+    return jsonify({"status":"Success"})
+
+
 
 
 @app.route("/getfileid",methods=["POST","GET"])
@@ -218,13 +279,14 @@ def chatbot():
         content=message,
         file_ids=filedata
         )
-        print("TEST DONE")
+        print("TEST DONE 1")
     else:
         message = client.beta.threads.messages.create(
         thread_id=threadId,
         role="user",
         content=message,
         )
+        print("TEST DONE 2")
 
     run = client.beta.threads.runs.create(
     thread_id=threadId,
@@ -290,216 +352,138 @@ def get_invite(id, email,targetemail):
         return jsonify({"error":"User not found"}),400
 
 
-# @app.route("/createassistant1",methods=["POST","GET"])
-# def createassistant1():
-#     try:
-#         os.remove("test.pdf")
-#     except:
-#         pass
-#     uniqueid= request.form.get('uniqueid')
-#     assistantName=  request.form.get('assistantName')
-#     instruction= request.form.get('instruction')
-#     code_interpreter=request.form.get("code_interpreter")
-#     retrieval=request.form.get("retrieval")
-#     print("Unique ID:",uniqueid)
-#     tools=[]
-#     print(retrieval)
-#     if code_interpreter=="True":
-#         tools.append({"type":"code_interpreter"})
-#     if retrieval=="True":
-#         tools.append({"type":"retrieval"})
-#     print(tools)
-#     function={
-#     "type": "function",
-#     "function": {
-#       "name": "getCurrentWeather",
-#       "description": "Get the weather in location",
-#       "parameters": {
-#         "type": "object",
-#         "properties": {
-#           "location": {"type": "string", "description": "The city and state e.g. San Francisco, CA"},
-#         },
-#         "required": ["location"]
-#             }
-#         } 
-#      }
-#     tools.append(function)
-#     try:
-#         file1 = request.files['file']
-#         file1.save(os.path.join(os.getcwd(), "test.pdf"))
-#         file = client.files.create(file=open("test.pdf", "rb"),purpose='assistants')
-#         print(file)
-#         assistant = client.beta.assistants.create(
-#         name=assistantName,
-#         instructions= instruction,
-#         tools=tools,
-#         model="gpt-4-1106-preview",
-#         file_ids=[file.id] )
-#         print("Executed")
-#     except:
-#         assistant = client.beta.assistants.create(
-#         name=assistantName,
-#         instructions= instruction,
-#         tools=tools,
-#         model="gpt-4-1106-preview",
-#         )
-#     # userdb.insert_one({"_id":uniqueid,{"threadId": ""},{"$push": {"assistants":  assistant.id}})  
-#     cust_info = userdb.find_one({"_id":uniqueid})
-#     assistantInfo={
-#             "assistantid":assistant.id,
-#             "assistantname":assistantName,
-#             "instruction": instruction,
-#             "code_interpreter":code_interpreter,
-#             "retrieval":retrieval
-#         }
-#     if cust_info is not None: 
-#         userdb.update_one(
-#                         {"_id": uniqueid},
-#                          {"$push": {"assistants": assistantInfo}})  
-#     else:
-#         userdb.insert_one({"_id":uniqueid,"assistants": [assistantInfo]})    
-#     # userdb.insert_one(
-#     #                     {"_id": uniqueid},
-#     #                     {"$push": {"assistants": assistant.id}})  
 
-#     print(assistant)
-#     result={
-#         "assistantId": assistant.id
-#     }
-#     try:
-#         os.remove("test.pdf")
-#     except:
-#         pass
-#     return jsonify(result)
+@app.route("/chatbot1",methods=["POST","GET"])
+def chatbot1():
+    req_data = request.get_json()
+    unique_id=req_data["unique_id"]
+    message=req_data["message"]
+    assistantId=req_data["assistantId"]
+    session_id = req_data["session_id"]
+    cust_info = userdb.find_one({"_id":unique_id})
+    if  cust_info==None:
+        return jsonify({"error":"You have not yet created an assistant or your assistant id is incorrect"}), 400
+    if "session_id" not in cust_info: 
+         userdb.update_one({"_id":unique_id}, {"$set": {"session_id": session_id}})   
+    if "threadId" in cust_info:  
+        threadId=cust_info["threadId"] 
+        cust_info = userdb.find_one({"_id":unique_id})
+        if "session_id" in cust_info and session_id != cust_info["session_id"]:
+            thread = client.beta.threads.create()
+            threadId = thread.id
+            userdb.update_one({"_id":unique_id}, {"$set": {"session_id": session_id, "threadId": threadId,"files": []}})     
+    else:
+        thread = client.beta.threads.create()
+        threadId = thread.id
+        userdb.update_one({"_id":unique_id}, {"$set": {"session_id": session_id, "threadId": threadId}})    
+    cust_info = userdb.find_one({"_id":unique_id})
+    filedata=""    
+    if "files" in cust_info:
+        filedata=cust_info["files"]
+        print(filedata)
+    print(filedata)
+    if filedata!="":
+        message = client.beta.threads.messages.create(
+        thread_id=threadId,
+        role="user",
+        content=message,
+        file_ids=filedata
+        )
+        print("TEST DONE 1")
+    else:
+        message = client.beta.threads.messages.create(
+        thread_id=threadId,
+        role="user",
+        content=message,
+        )
+        print("TEST DONE 2")
+    for assistant in cust_info["assistants"]:
+        # print(assistant)
+        if assistant['assistantid'] == assistantId:
+            fetchedAssistant=assistant
+            break
+    tools=fetchedAssistant["tools"]
+    print("Tools:",tools)
+    run = client.beta.threads.runs.create(
+    thread_id=threadId,
+    assistant_id=assistantId,
+    instructions=f"Please help the user with all his queries",
+    tools=tools
+    )
+    # print(run)
+    while run.status != 'completed':
+            time.sleep(2)
+            run = client.beta.threads.runs.retrieve(
+                thread_id=threadId,
+                run_id=run.id
+            )
+            if run.status == "requires_action":
+              required_action = run.required_action
 
-# @app.route("/chatbot1",methods=["POST","GET"])
-# def chatbot1():
-#     req_data = request.get_json()
-#     unique_id=req_data["unique_id"]
-#     message=req_data["message"]
-#     assistantId=req_data["assistantId"]
-#     # file_id=req_data["fileid"]
-#     cust_info = userdb.find_one({"_id":unique_id})
-#     if  cust_info==None:
-#         return jsonify({"error":"You have not yet created an assistant or your assistant id is incorrect"}), 400
-#     if "threadId" in cust_info: 
-#         threadId = cust_info["threadId"]  
-#     else:
-#         thread = client.beta.threads.create()
-#         threadId = thread.id
-#         userdb.update_one({"_id":unique_id}, {"$set": {"threadId": threadId}})    
-#     filedata=""    
-#     if "files" in cust_info:
-#         filedata=cust_info["files"]
-#         print(filedata)
-#     print(filedata)
-#     if filedata!="":
-#         message = client.beta.threads.messages.create(
-#         thread_id=threadId,
-#         role="user",
-#         content=message,
-#         file_ids=filedata
-#         )
-#         print("TEST DONE")
-#     else:
-#         message = client.beta.threads.messages.create(
-#         thread_id=threadId,
-#         role="user",
-#         content=message,
-#         )
+              # Check if the required action is 'submit_tool_outputs'
+              if required_action.type == "submit_tool_outputs":
+                tool_outputs = []
+                for tool_call in required_action.submit_tool_outputs.tool_calls:
+                # Check if the tool call is a function
+                  if tool_call.type == "function":
+                    function_name = tool_call.function.name
+                    arguments_json = tool_call.function.arguments
 
-#     run = client.beta.threads.runs.create(
-#     thread_id=threadId,
-#     assistant_id=assistantId,
-#     instructions=f"Please help the user with all his queries",
-#     tools=[{"type": "code_interpreter"}, {"type": "retrieval"},{"type": "function",
-#     "function": {
-#       "name": "getCurrentWeather",
-#       "description": "Get the weather in location",
-#       "parameters": {
-#         "type": "object",
-#         "properties": {
-#           "location": {"type": "string", "description": "The city and state e.g. San Francisco, CA"},
-#         },
-#         "required": ["location"]
-#             }
-#         } 
-#      }]
-#     )
-#     # print(run)
-#     while run.status != 'completed':
-#             time.sleep(2)
-#             run = client.beta.threads.runs.retrieve(
-#                 thread_id=threadId,
-#                 run_id=run.id
-#             )
-#             if run.status == "requires_action":
-#               required_action = run.required_action
+                    # Parse the JSON arguments
+                    arguments = json.loads(arguments_json)
+                    print('Calling function: ', function_name,arguments_json )
+                    # Assuming you have a function mapping
+                    function_mapping = {
+                      "getCurrentWeather": getCurrentWeather,  # getfunc is a function defined in your code
+                      # ... other function mappings
+                    }
 
-#               # Check if the required action is 'submit_tool_outputs'
-#               if required_action.type == "submit_tool_outputs":
-#                 tool_outputs = []
-#                 for tool_call in required_action.submit_tool_outputs.tool_calls:
-#                 # Check if the tool call is a function
-#                   if tool_call.type == "function":
-#                     function_name = tool_call.function.name
-#                     arguments_json = tool_call.function.arguments
+                    # Check if the function exists and call it
+                    if function_name in function_mapping:
+                      print('Calling function: ', function_name,arguments_json )
+                      response = function_mapping[function_name](**arguments)
+                      print('Function response: ', response)
+                      tool_outputs.append({
+                        "tool_call_id": tool_call.id,
+                        "output": str(response),
+                      })
+                      print(tool_outputs)
+                    # submit the tool outputs to the thread and run
+                    print('submit the tool outputs to the thread and run')
+                    run = client.beta.threads.runs.submit_tool_outputs(
+                      thread_id=thread.id,
+                      run_id=run.id,
+                      tool_outputs= tool_outputs
+                    )
 
-#                     # Parse the JSON arguments
-#                     arguments = json.loads(arguments_json)
-
-#                     # Assuming you have a function mapping
-#                     function_mapping = {
-#                       "getCurrentWeather": getCurrentWeather,  # getfunc is a function defined in your code
-#                       # ... other function mappings
-#                     }
-
-#                     # Check if the function exists and call it
-#                     if function_name in function_mapping:
-#                       print('Calling function: ', function_name,arguments_json )
-#                       response = function_mapping[function_name](**arguments)
-#                       print('Function response: ', response)
-#                       tool_outputs.append({
-#                         "tool_call_id": tool_call.id,
-#                         "output": str(response),
-#                       })
-#                       print(tool_outputs)
-#                     # submit the tool outputs to the thread and run
-#                     print('submit the tool outputs to the thread and run')
-#                     run = client.beta.threads.runs.submit_tool_outputs(
-#                       thread_id=thread.id,
-#                       run_id=run.id,
-#                       tool_outputs= tool_outputs
-#                     )
-
-#     messages = client.beta.threads.messages.list(
-#     thread_id=threadId
-#     )
-#     print(messages.data[0])
-#     try:
-#         output=messages.data[0].content[0].text.value
-#         print(f'Assistant: {messages.data[0].content[0].text.value}')
-#         image=""
-#     except:
-#         output=messages.data[0].content[1].text.value
-#         print(f'Assistant: {messages.data[0].content[1].text.value}')
-#         file_id=messages.data[0].content[0].image_file.file_id
-#         content = client.files.content(file_id)
-#         content = content.content
+    messages = client.beta.threads.messages.list(
+    thread_id=threadId
+    )
+    print(messages.data[0])
+    try:
+        output=messages.data[0].content[0].text.value
+        print(f'Assistant: {messages.data[0].content[0].text.value}')
+        image=""
+    except:
+        output=messages.data[0].content[1].text.value
+        print(f'Assistant: {messages.data[0].content[1].text.value}')
+        file_id=messages.data[0].content[0].image_file.file_id
+        content = client.files.content(file_id)
+        content = content.content
         
-#         with open('image.png', 'wb') as f:
-#             f.write(content)
-#         with open('image.png', 'rb') as f:
-#             image_bytes = f.read()
-#             base64_encoded = base64.b64encode(image_bytes).decode('utf-8')
-#             image=base64_encoded
-#         print('File downloaded successfully.')
-#     response={
-#         "status":"Success",
-#         "response": output,
-#         "image": image
-#     }
-#     return jsonify(response)
+        with open('image.png', 'wb') as f:
+            f.write(content)
+        with open('image.png', 'rb') as f:
+            image_bytes = f.read()
+            base64_encoded = base64.b64encode(image_bytes).decode('utf-8')
+            image=base64_encoded
+        print('File downloaded successfully.')
+    response={
+        "status":"Success",
+        "response": output,
+        "image": image
+    }
+    return jsonify(response)
 
 
 # def getCurrentWeather(location):
