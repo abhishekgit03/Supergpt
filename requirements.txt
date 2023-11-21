@@ -3,3 +3,7 @@ requests
 flask
 flask_cors
 pymongo
+scikit-learn==1.1.3
+rank_bm25==0.2.2
+google==3.0.0
+BeautifulSoup4

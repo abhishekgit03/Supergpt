@@ -1,2 +1,5 @@
 env
 test1.py
+__pycache__
+.google-cookie
+test.py

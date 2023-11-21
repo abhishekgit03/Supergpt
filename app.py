@@ -5,8 +5,10 @@ import json
 import os
 import base64
 import pymongo
+import subprocess
 from flask import Flask, jsonify, request,stream_with_context
 from flask_cors import CORS, cross_origin
+from websearch import internet
 app = Flask(__name__)
 CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
@@ -23,6 +25,7 @@ def createassistant():
     instruction= request.form.get('instruction')
     code_interpreter=request.form.get("code_interpreter")
     retrieval=request.form.get("retrieval")
+    websearch=request.form.get("websearch")
     print("Unique ID:",uniqueid)
     tools=[]
     print(retrieval)
@@ -30,6 +33,23 @@ def createassistant():
         tools.append({"type":"code_interpreter"})
     if retrieval=="True":
         tools.append({"type":"retrieval"})
+    if websearch=="True":
+        tools.append(
+            {
+      "type": "function",
+    "function": {
+      "name": "websearch",
+      "description": "Perform web searches based on user-provided queries if dynamic access to up-to-date information is required",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "searchquery": {"type": "string", "description": "A search query/question"},
+        },
+        "required": ["searchquery"]
+      }
+    }
+  }
+        )
     print(tools)
     
     try:
@@ -61,7 +81,8 @@ def createassistant():
             "instruction": instruction,
             "code_interpreter":code_interpreter,
             "retrieval":retrieval,
-            "tools":tools
+            "websearch":websearch,
+            "tools":tools      
         }
     print(assistantInfo)
     if cust_info is not None: 
@@ -96,7 +117,23 @@ def createaction():
             fetchedAssistant=assistant
             break
     
-    print("fetchedAssistant:",fetchedAssistant)
+    # print("fetchedAssistant:",fetchedAssistant)
+    current_function_mapping = fetchedAssistant.get("functionMap", {})
+    if(current_function_mapping=={}):
+        updated_function_mapping = {
+                      nameofFunction: url,  
+                    }
+    else:
+        print("##",current_function_mapping)
+        current_function_mapping[nameofFunction] = url
+        updated_function_mapping=current_function_mapping
+
+    print(updated_function_mapping)
+    userdb.update_one(
+                        {"_id": unique_id, "assistants.assistantid": assistantid},
+                        {"$set": {"assistants.$.functionMap": updated_function_mapping}}
+    )
+    
     properties_dict = {
     "type": "object",
     "properties": {},
@@ -243,7 +280,7 @@ def getassistants(uniqueid):
     
     return response
 
-@app.route("/chatbot",methods=["POST","GET"])
+@app.route("/chatbot1",methods=["POST","GET"])   #V1
 def chatbot():
     req_data = request.get_json()
     unique_id=req_data["unique_id"]
@@ -353,7 +390,7 @@ def get_invite(id, email,targetemail):
 
 
 
-@app.route("/chatbot1",methods=["POST","GET"])
+@app.route("/chatbot",methods=["POST","GET"])  #V2
 def chatbot1():
     req_data = request.get_json()
     unique_id=req_data["unique_id"]
@@ -432,26 +469,30 @@ def chatbot1():
                     # Parse the JSON arguments
                     arguments = json.loads(arguments_json)
                     print('Calling function: ', function_name,arguments_json )
-                    # Assuming you have a function mapping
-                    function_mapping = {
-                      "getCurrentWeather": getCurrentWeather,  # getfunc is a function defined in your code
-                      # ... other function mappings
-                    }
-
-                    # Check if the function exists and call it
-                    if function_name in function_mapping:
-                      print('Calling function: ', function_name,arguments_json )
-                      response = function_mapping[function_name](**arguments)
-                      print('Function response: ', response)
-                      tool_outputs.append({
+                    if function_name=="websearch":
+                        
+                        internet_response=internet(str(arguments["searchquery"]))
+                        print('API response: ', internet_response)
+                        tool_outputs.append({
+                        "tool_call_id": tool_call.id,
+                        "output": str(internet_response),
+                        })
+                    else:
+                        current_function_mapping = fetchedAssistant.get("functionMap", {})
+                        print(current_function_mapping)       
+                        api_url = current_function_mapping[function_name]
+                        print("api_url=",api_url)
+                        response=apicaller(api_url,arguments_json)                   
+                        print('API response: ', response)
+                        tool_outputs.append({
                         "tool_call_id": tool_call.id,
                         "output": str(response),
-                      })
-                      print(tool_outputs)
+                        })
+                    print(tool_outputs)
                     # submit the tool outputs to the thread and run
                     print('submit the tool outputs to the thread and run')
                     run = client.beta.threads.runs.submit_tool_outputs(
-                      thread_id=thread.id,
+                      thread_id=threadId,
                       run_id=run.id,
                       tool_outputs= tool_outputs
                     )
@@ -484,6 +525,18 @@ def chatbot1():
         "image": image
     }
     return jsonify(response)
+
+def apicaller(apiurl,payload):
+    # Define the command to execute using curl
+    command = ['curl', '-s', '-o', '-']
+    json_data = json.dumps(payload)
+    command.extend(['-d', json_data])
+    command.extend(['-H', 'Content-Type: application/json'])
+    command.append(apiurl)
+    result = subprocess.run(command, capture_output=True, text=True)
+    return result.stdout
+    # return "Weather is 20 degree celsius"
+
 
 
 # def getCurrentWeather(location):
