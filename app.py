@@ -26,6 +26,7 @@ def createassistant():
     code_interpreter=request.form.get("code_interpreter")
     retrieval=request.form.get("retrieval")
     websearch=request.form.get("websearch")
+    imagegeneration=request.form.get("imagegeneration")
     print("Unique ID:",uniqueid)
     tools=[]
     print(retrieval)
@@ -46,10 +47,28 @@ def createassistant():
           "searchquery": {"type": "string", "description": "A search query/question"},
         },
         "required": ["searchquery"]
-      }
-    }
-  }
+            }
+        }
+        }
         )
+    if imagegeneration=="True":
+        tools.append(
+        {
+            "type": "function",
+            "function": {
+                "name": "imagegeneration",
+                "description": "Generate images based on user-defined criteria if user wants to generate or create images",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "imageprompt": {"type": "string", "description": "Criteria for image generation"},
+                    },
+                    "required": ["imageprompt"]
+                }
+            }
+        }
+    )
+
     print(tools)
     
     try:
@@ -482,7 +501,7 @@ def chatbot1():
                         print(current_function_mapping)       
                         api_url = current_function_mapping[function_name]
                         print("api_url=",api_url)
-                        response=apicaller(api_url,arguments_json)                   
+                        response=apicaller(api_url,json.loads(arguments_json))                  
                         print('API response: ', response)
                         tool_outputs.append({
                         "tool_call_id": tool_call.id,
@@ -538,22 +557,25 @@ def apicaller(apiurl,payload):
     # return "Weather is 20 degree celsius"
 
 
+@app.route("/weatherapi",methods=["POST","GET"])
+def getCurrentWeather():
+    req_data = request.get_json()
+    print(req_data)
+    location=req_data["location"]
+    """Get the current weather in a given location"""
 
-# def getCurrentWeather(location):
-#     """Get the current weather in a given location"""
+    url = "https://weather-by-api-ninjas.p.rapidapi.com/v1/weather"
 
-#     url = "https://weather-by-api-ninjas.p.rapidapi.com/v1/weather"
+    querystring = {"city":location}
 
-#     querystring = {"city":location}
+    headers = {
+      "X-RapidAPI-Key": "f27f973102mshe4b847b8640d9f5p123a1fjsn99811990501d",
+      "X-RapidAPI-Host": "weather-by-api-ninjas.p.rapidapi.com"
+    }
 
-#     headers = {
-#       "X-RapidAPI-Key": "f27f973102mshe4b847b8640d9f5p123a1fjsn99811990501d",
-#       "X-RapidAPI-Host": "weather-by-api-ninjas.p.rapidapi.com"
-#     }
-
-#     response = requests.get(url, headers=headers, params=querystring)
-#     print(response.json())
-#     return response.json()
+    response = requests.get(url, headers=headers, params=querystring)
+    print(response.json())
+    return response.json()
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080, debug=True) 
