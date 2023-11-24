@@ -9,6 +9,7 @@ import subprocess
 from flask import Flask, jsonify, request,stream_with_context
 from flask_cors import CORS, cross_origin
 from websearch import internet
+from dalle import imagegenerator
 app = Flask(__name__)
 CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
@@ -101,6 +102,7 @@ def createassistant():
             "code_interpreter":code_interpreter,
             "retrieval":retrieval,
             "websearch":websearch,
+            "imagegeneration":imagegeneration,
             "tools":tools      
         }
     print(assistantInfo)
@@ -467,6 +469,7 @@ def chatbot1():
     tools=tools
     )
     # print(run)
+    image=""
     while run.status != 'completed':
             time.sleep(2)
             run = client.beta.threads.runs.retrieve(
@@ -496,6 +499,14 @@ def chatbot1():
                         "tool_call_id": tool_call.id,
                         "output": str(internet_response),
                         })
+                    if function_name=="imagegeneration":
+                        
+                        image_response=imagegenerator(str(arguments["imageprompt"]))
+                        image=image_response
+                        tool_outputs.append({
+                        "tool_call_id": tool_call.id,
+                        "output": "User has been shown the relevant image along with this message. Just reply - Here is your image. Nothing else.",
+                        })
                     else:
                         current_function_mapping = fetchedAssistant.get("functionMap", {})
                         print(current_function_mapping)       
@@ -522,8 +533,7 @@ def chatbot1():
     print(messages.data[0])
     try:
         output=messages.data[0].content[0].text.value
-        print(f'Assistant: {messages.data[0].content[0].text.value}')
-        image=""
+        print(f'Assistant: {messages.data[0].content[0].text.value}')     
     except:
         output=messages.data[0].content[1].text.value
         print(f'Assistant: {messages.data[0].content[1].text.value}')
