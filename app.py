@@ -491,22 +491,24 @@ def chatbot1():
                     # Parse the JSON arguments
                     arguments = json.loads(arguments_json)
                     print('Calling function: ', function_name,arguments_json )
-                    if function_name=="websearch":
-                        
-                        internet_response=internet(str(arguments["searchquery"]))
-                        print('API response: ', internet_response)
-                        tool_outputs.append({
-                        "tool_call_id": tool_call.id,
-                        "output": str(internet_response),
-                        })
-                    if function_name=="imagegeneration":
-                        
-                        image_response=imagegenerator(str(arguments["imageprompt"]))
-                        image=image_response
-                        tool_outputs.append({
-                        "tool_call_id": tool_call.id,
-                        "output": "User has been shown the relevant image along with this message. Just reply - Here is your image. Nothing else.",
-                        })
+                    print("#"+function_name+"#")
+                    if function_name=="websearch" or function_name=="imagegeneration":
+                        if function_name=="websearch":
+                            
+                            internet_response=internet(str(arguments["searchquery"]))
+                            print('API response: ', internet_response)
+                            tool_outputs.append({
+                            "tool_call_id": tool_call.id,
+                            "output": str(internet_response),
+                            })
+                        if function_name=="imagegeneration":
+                            
+                            image_response=imagegenerator(str(arguments["imageprompt"]))
+                            image=image_response
+                            tool_outputs.append({
+                            "tool_call_id": tool_call.id,
+                            "output": "User has been shown the relevant image along with this message. Just reply - Here is your image. Nothing else.",
+                            })
                     else:
                         current_function_mapping = fetchedAssistant.get("functionMap", {})
                         print(current_function_mapping)       
@@ -519,13 +521,13 @@ def chatbot1():
                         "output": str(response),
                         })
                     print(tool_outputs)
-                    # submit the tool outputs to the thread and run
-                    print('submit the tool outputs to the thread and run')
-                    run = client.beta.threads.runs.submit_tool_outputs(
-                      thread_id=threadId,
-                      run_id=run.id,
-                      tool_outputs= tool_outputs
-                    )
+                # submit the tool outputs to the thread and run
+                print('submit the tool outputs to the thread and run')
+                run = client.beta.threads.runs.submit_tool_outputs(
+                    thread_id=threadId,
+                    run_id=run.id,
+                    tool_outputs= tool_outputs
+                )
 
     messages = client.beta.threads.messages.list(
     thread_id=threadId
