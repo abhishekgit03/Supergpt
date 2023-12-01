@@ -57,23 +57,23 @@ def createassistant():
         }
         }
         )
-    if imagegeneration=="True":
-        tools.append(
-        {
-            "type": "function",
-            "function": {
-                "name": "imagegeneration",
-                "description": "Generate images based on user-defined criteria if user wants to generate or create images",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "imageprompt": {"type": "string", "description": "Criteria for image generation"},
-                    },
-                    "required": ["imageprompt"]
-                }
-            }
-        }
-    )
+    # if imagegeneration=="True":
+    #     tools.append(
+    #     {
+    #         "type": "function",
+    #         "function": {
+    #             "name": "imagegeneration",
+    #             "description": "Generate images based on user-defined criteria if user wants to generate or create images",
+    #             "parameters": {
+    #                 "type": "object",
+    #                 "properties": {
+    #                     "imageprompt": {"type": "string", "description": "Criteria for image generation"},
+    #                 },
+    #                 "required": ["imageprompt"]
+    #             }
+    #         }
+    #     }
+    # )
 
     print(tools)
     
@@ -238,7 +238,7 @@ def getImageid():
     file1 = request.files['file']
     uniqueid= request.form.get('uniqueid')
     file_bytes = file1.read()
-    api_key = "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"
+    api_key = "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"
     # file1.save(os.path.join(os.getcwd(), "test"))
     # file_extension = os.path.splitext(file_path)[1]
     image_path = "img.jpeg"
@@ -428,10 +428,11 @@ def resetsession():
 def chatbot1():
     req_data = request.get_json()
     unique_id=req_data["unique_id"]
-    message=req_data["message"]
+    usermessage=req_data["message"]
     assistantId=req_data["assistantId"]
     session_id = req_data["session_id"]
     cust_info = userdb.find_one({"_id":unique_id})
+    image=""
     if  cust_info==None:
         return jsonify({"error":"You have not yet created an assistant or your assistant id is incorrect"}), 400
     if "session_id" not in cust_info: 
@@ -457,7 +458,7 @@ def chatbot1():
         message = client.beta.threads.messages.create(
         thread_id=threadId,
         role="user",
-        content=message,
+        content=usermessage,
         file_ids=filedata
         )
         print("TEST DONE 1")
@@ -465,7 +466,7 @@ def chatbot1():
         message = client.beta.threads.messages.create(
         thread_id=threadId,
         role="user",
-        content=message,
+        content=usermessage,
         )
         print("TEST DONE 2")
     for assistant in cust_info["assistants"]:
@@ -477,6 +478,10 @@ def chatbot1():
     print("Tools:",tools)
     instruction=fetchedAssistant["instruction"]
     print("Instruction:",instruction)
+    if(fetchedAssistant["imagegeneration"]=="True"):
+        print("Message:",usermessage)
+        image_response=imagegenerator(usermessage)
+        image=image_response
     run = client.beta.threads.runs.create(
     thread_id=threadId,
     assistant_id=assistantId,
@@ -484,7 +489,6 @@ def chatbot1():
     tools=tools
     )
     # print(run)
-    image=""
     while run.status != 'completed':
             time.sleep(2)
             run = client.beta.threads.runs.retrieve(
@@ -516,8 +520,7 @@ def chatbot1():
                             "tool_call_id": tool_call.id,
                             "output": str(internet_response),
                             })
-                        if function_name=="imagegeneration":
-                            
+                        if function_name=="imagegeneration":                           
                             image_response=imagegenerator(str(arguments["imageprompt"]))
                             image=image_response
                             tool_outputs.append({
