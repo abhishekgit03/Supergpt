@@ -207,11 +207,21 @@ def createaction():
 def getFileid():
     file1 = request.files['file']
     uniqueid= request.form.get('uniqueid')
+    sessionid= request.form.get('sessionid')
     file_bytes = file1.read()
     # file1.save(os.path.join(os.getcwd(), "test"))
     # file_extension = os.path.splitext(file_path)[1]
     file = client.files.create(file=file_bytes,purpose='assistants')
     cust_info = userdb.find_one({"_id":uniqueid})
+    if "session_id" not in cust_info: 
+         userdb.update_one({"_id":uniqueid}, {"$set": {"session_id": sessionid}})   
+    if "threadId" in cust_info:  
+        threadId=cust_info["threadId"] 
+        cust_info = userdb.find_one({"_id":uniqueid})
+        if "session_id" in cust_info and sessionid != cust_info["session_id"]:
+            thread = client.beta.threads.create()
+            threadId = thread.id
+            userdb.update_one({"_id":uniqueid}, {"$set": {"session_id": sessionid, "threadId": threadId,"files": []}}) 
     if "files" not in cust_info:
         userdb.update_one(
                             {"_id": uniqueid},
@@ -237,6 +247,7 @@ def encode_image(file_bytes):
 def getImageid():
     file1 = request.files['file']
     uniqueid= request.form.get('uniqueid')
+    sessionid= request.form.get('sessionid')
     file_bytes = file1.read()
     api_key = "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"
     # file1.save(os.path.join(os.getcwd(), "test"))
@@ -282,6 +293,15 @@ def getImageid():
     print(type(result))
     file = client.files.create(file=result,purpose='assistants')
     cust_info = userdb.find_one({"_id":uniqueid})
+    if "session_id" not in cust_info: 
+         userdb.update_one({"_id":uniqueid}, {"$set": {"session_id": sessionid}})   
+    if "threadId" in cust_info:  
+        threadId=cust_info["threadId"] 
+        cust_info = userdb.find_one({"_id":uniqueid})
+        if "session_id" in cust_info and sessionid != cust_info["session_id"]:
+            thread = client.beta.threads.create()
+            threadId = thread.id
+            userdb.update_one({"_id":uniqueid}, {"$set": {"session_id": sessionid, "threadId": threadId,"files": []}}) 
     if "files" not in cust_info:
         userdb.update_one(
                             {"_id": uniqueid},
@@ -306,97 +326,6 @@ def getassistants(uniqueid):
     
     return response
 
-# @app.route("/chatbot1",methods=["POST","GET"])   #V1
-# def chatbot():
-#     req_data = request.get_json()
-#     unique_id=req_data["unique_id"]
-#     message=req_data["message"]
-#     assistantId=req_data["assistantId"]
-#     session_id = req_data["session_id"]
-#     cust_info = userdb.find_one({"_id":unique_id})
-#     if  cust_info==None:
-#         return jsonify({"error":"You have not yet created an assistant or your assistant id is incorrect"}), 400
-#     if "session_id" not in cust_info: 
-#          userdb.update_one({"_id":unique_id}, {"$set": {"session_id": session_id}})   
-#     if "threadId" in cust_info:  
-#         threadId=cust_info["threadId"] 
-#         cust_info = userdb.find_one({"_id":unique_id})
-#         if "session_id" in cust_info and session_id != cust_info["session_id"]:
-#             thread = client.beta.threads.create()
-#             threadId = thread.id
-#             userdb.update_one({"_id":unique_id}, {"$set": {"session_id": session_id, "threadId": threadId,"files": []}})     
-#     else:
-#         thread = client.beta.threads.create()
-#         threadId = thread.id
-#         userdb.update_one({"_id":unique_id}, {"$set": {"session_id": session_id, "threadId": threadId}})    
-#     cust_info = userdb.find_one({"_id":unique_id})
-#     filedata=""    
-#     if "files" in cust_info:
-#         filedata=cust_info["files"]
-#         print(filedata)
-#     print(filedata)
-#     if filedata!="":
-#         message = client.beta.threads.messages.create(
-#         thread_id=threadId,
-#         role="user",
-#         content=message,
-#         file_ids=filedata
-#         )
-#         print("TEST DONE 1")
-#     else:
-#         message = client.beta.threads.messages.create(
-#         thread_id=threadId,
-#         role="user",
-#         content=message,
-#         )
-#         print("TEST DONE 2")
-
-#     run = client.beta.threads.runs.create(
-#     thread_id=threadId,
-#     assistant_id=assistantId,
-#     instructions=f"Please help the user with all his queries",
-#     tools=[{"type": "code_interpreter"}, {"type": "retrieval"}]
-#     )
-#     # print(run)
-#     while True:
-#         time.sleep(2)
-#         run = client.beta.threads.runs.retrieve(
-#         thread_id=threadId,
-#         run_id=run.id
-#         )
-#         if run.status =='completed':
-#             break
-#         else:
-#             pass
-
-#     messages = client.beta.threads.messages.list(
-#     thread_id=threadId
-#     )
-#     print(messages.data[0])
-#     try:
-#         output=messages.data[0].content[0].text.value
-#         print(f'Assistant: {messages.data[0].content[0].text.value}')
-#         image=""
-#     except:
-#         output=messages.data[0].content[1].text.value
-#         print(f'Assistant: {messages.data[0].content[1].text.value}')
-#         file_id=messages.data[0].content[0].image_file.file_id
-#         content = client.files.content(file_id)
-#         content = content.content
-        
-#         with open('image.png', 'wb') as f:
-#             f.write(content)
-#         with open('image.png', 'rb') as f:
-#             image_bytes = f.read()
-#             base64_encoded = base64.b64encode(image_bytes).decode('utf-8')
-#             image=base64_encoded
-#         print('File downloaded successfully.')
-#     response={
-#         "status":"Success",
-#         "response": output,
-#         "image": image
-#     }
-#     return jsonify(response)
 
 @app.route('/invite/<string:id>/<string:email>/<string:targetemail>', methods=['GET'])
 def get_invite(id, email,targetemail):
@@ -478,9 +407,38 @@ def chatbot1():
     print("Tools:",tools)
     instruction=fetchedAssistant["instruction"]
     print("Instruction:",instruction)
-    if(fetchedAssistant["imagegeneration"]=="True"):
-        print("Message:",usermessage)
-        image_response=imagegenerator(usermessage)
+   
+    m2 = [{"role": "system", "content": f"""You are an Image Assistant. Your task is to help an AI Assistant decide if Image Generation is required for the Assistant to respond to a User Dialogue. 
+    You would be given AI Assistant's Goal and User Dialogue as input. Take into consideration these inputs and decide.
+    If Image Generation is required then reply - Yes or else reply - No.
+
+    Input:
+    AI Assistant's Goal: {fetchedAssistant["instruction"]}
+    User Dialogue: {usermessage}
+
+    Decision:"""}]
+    result = client.chat.completions.create(
+        model="gpt-4",  
+        temperature = 0.3,
+        messages=m2)
+    output=result.choices[0].message.content
+    print(result.choices[0].message.content)
+    if(fetchedAssistant["imagegeneration"]=="True" and output=="Yes"):
+        m2 = [{"role": "system", "content": f"""You are an Image Generation Text Expert. Your task is to generate Text which will be used by an Image Generation AI for generating Image. This image, in turn, will be used by an AI Assistant to respond to a User Dialogue. 
+        You would be given AI Assistant's Goal and User Dialogue as input. Take into consideration of these inputs and generate Text for Image Generation
+
+        Input:
+        AI Assistant's Goal: {fetchedAssistant["instruction"]}
+        User Dialogue: {usermessage}
+
+        Text for Image Generation:"""}]
+        result = client.chat.completions.create(
+            model="gpt-4",  
+            temperature = 0.3,
+            messages=m2)
+        processed_for_dalle=result.choices[0].message.content
+        print("Message:",processed_for_dalle)
+        image_response=imagegenerator(processed_for_dalle)
         image=image_response
     run = client.beta.threads.runs.create(
     thread_id=threadId,
@@ -576,62 +534,60 @@ def chatbot1():
     return jsonify(response)
 
 
-# @app.route("/documentchat",methods = ['GET','POST'])  
-# def documentchat():
-#     global documentchatdb
-#     req_data = request.get_json()
-#     unique_id=req_data['unique_id']
-#     session_id=req_data['session_id']
-#     customer_message=req_data['message']
-#     bucket = storage_client.bucket("documentbucketaicrafts")
-#     blob = bucket.blob("testfile.txt")
-#     content = blob.download_as_text()
-#     print(content)
-#     def stream():
-#         try:
-#             cust_info = documentchatdb.find_one({"_id":session_id})
-#             chat = cust_info['chat']
-#         except:
-#             documentchatdb.insert_one({"userid":unique_id,"_id":session_id,"chat":""})
-#             cust_info = documentchatdb.find_one({"_id":session_id})
-#             chat = cust_info['chat']
-#         chat = add_chat_log("user", customer_message, chat)
-#         documentchatdb.update_one({"_id":session_id},{"$set":{"chat":chat}})
-#         Chat_History = chat
-#         # print("Chat_History:",Chat_History)
-#         prompt="""You are an AI assistant. You may be provided with a document and users can ask any questions related to the document.
-#         Document:
+@app.route("/documentchat",methods = ['GET','POST'])  
+def documentchat():
+    global documentchatdb
+    req_data = request.get_json()
+    unique_id=req_data['unique_id']
+    session_id=req_data['session_id']
+    customer_message=req_data['message']
+    bucket = storage_client.bucket("documentbucketaicrafts")
+    blob = bucket.blob("testfile.txt")
+    content = blob.download_as_text()
+    print(content)
+    def stream():
+        try:
+            cust_info = documentchatdb.find_one({"_id":session_id})
+            chat = cust_info['chat']
+        except:
+            documentchatdb.insert_one({"userid":unique_id,"_id":session_id,"chat":""})
+            cust_info = documentchatdb.find_one({"_id":session_id})
+            chat = cust_info['chat']
+        chat = add_chat_log("user", customer_message, chat)
+        documentchatdb.update_one({"_id":session_id},{"$set":{"chat":chat}})
+        Chat_History = chat
+        # print("Chat_History:",Chat_History)
+        prompt="""You are an AI assistant. You may be provided with a document and users can ask any questions related to the document.
+        Document:
 
-#         """
-#         completion = client.chat.completions.create(
-#         model="gpt-4-1106-preview",
-#          messages=[{"role": "system", "content": prompt},
-#         {"role": "assistant", "content": str(Chat_History)},
-#         {"role": "user", "content": str(customer_message)}],
-#         stream=True
-#         )
+        """
+        completion = client.chat.completions.create(
+        model="gpt-4-1106-preview",
+         messages=[{"role": "system", "content": prompt},
+        {"role": "assistant", "content": str(Chat_History)},
+        {"role": "user", "content": str(customer_message)}],
+        stream=True
+        )
 
-#         one_line=""
-#         for line in completion:
-#             print(line.choices[0].delta.content)
-#             try:
-#                 print(line.choices[0].delta.content)
-#                 one_line=one_line+line.choices[0].delta.content
-#                 yield 'data: %s\n\n' % line.choices[0].delta.content
-#                 #yield '%s' % line.choices[0].delta.content
-#             except:
-#                 print("Error")
-#         resp=one_line
-#         print("customer_message=",customer_message)
-#         if resp.startswith("CC"):
-#             resp=resp[2:]
-#         print(resp)
-#         dialog= resp.strip()
-#         chat = add_chat_log("assistant", dialog, chat)
-#         documentchatdb.update_one({"_id":session_id}, {"$set":{"chat":chat}})
+        one_line=""
+        for line in completion:
+            print(line.choices[0].delta.content)
+            try:
+                print(line.choices[0].delta.content)
+                one_line=one_line+line.choices[0].delta.content
+                yield 'data: %s\n\n' % line.choices[0].delta.content
+                #yield '%s' % line.choices[0].delta.content
+            except:
+                print("Error")
+        resp=one_line
+        print("customer_message=",customer_message)
+        print(resp)
+        dialog= resp.strip()
+        chat = add_chat_log("assistant", dialog, chat)
+        documentchatdb.update_one({"_id":session_id}, {"$set":{"chat":chat}})
 
-#         print("Chat History:\n",Chat_History)
-#     return flask.Response(stream(), mimetype='text/event-stream')
+        print("Chat History:\n",Chat_History)
+    return flask.Response(stream(), mimetype='text/event-stream')
 
 
 def apicaller(apiurl,payload):
