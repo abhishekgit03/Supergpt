@@ -6,23 +6,21 @@ import os
 import base64
 import pymongo
 import subprocess
+import flask
 from flask import Flask, jsonify, request,stream_with_context
 from flask_cors import CORS, cross_origin
 from websearch import internet
 from dalle import imagegenerator
-#import flask
-# from google.cloud import storage
-# storage_client = storage.Client()
-# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "servicekey_googlecloud.json"
 app = Flask(__name__)
 CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = ""
 client = OpenAI()
 mongoclient = pymongo.MongoClient("mongodb+srv://abhishek:1234@cluster0.yns1eqf.mongodb.net/?retryWrites=true&w=majority")
-db = mongoclient.accintia 
+db = mongoclient.database
 userdb = db.gptassistant
 documentchatdb= db.documentchat
+careerdb=db.career
 
 @app.route("/createassistant",methods=["POST","GET"])
 def createassistant():
@@ -56,24 +54,7 @@ def createassistant():
             }
         }
         }
-        )
-    # if imagegeneration=="True":
-    #     tools.append(
-    #     {
-    #         "type": "function",
-    #         "function": {
-    #             "name": "imagegeneration",
-    #             "description": "Generate images based on user-defined criteria if user wants to generate or create images",
-    #             "parameters": {
-    #                 "type": "object",
-    #                 "properties": {
-    #                     "imageprompt": {"type": "string", "description": "Criteria for image generation"},
-    #                 },
-    #                 "required": ["imageprompt"]
-    #             }
-    #         }
-    #     }
-    # )
+        ) 
 
     print(tools)
     
@@ -249,7 +230,7 @@ def getImageid():
     uniqueid= request.form.get('uniqueid')
     sessionid= request.form.get('sessionid')
     file_bytes = file1.read()
-    api_key = "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"
+    api_key = ""
     # file1.save(os.path.join(os.getcwd(), "test"))
     # file_extension = os.path.splitext(file_path)[1]
     image_path = "img.jpeg"

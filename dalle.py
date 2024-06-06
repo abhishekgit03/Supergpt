@@ -1,7 +1,7 @@
 import os
 import requests
 import base64
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = ""
 from openai import OpenAI
 client = OpenAI()
 

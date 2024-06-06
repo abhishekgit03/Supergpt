@@ -10,7 +10,7 @@ import time
 import requests
 import os
 
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = ""
 from openai import OpenAI
 client = OpenAI()
 
